@@ -3,7 +3,9 @@
 A production-style, event-driven Data Quality pipeline that validates streaming order data against versioned JSON schemas, routes valid/invalid records, automatically reprocesses failed records when schemas evolve, and exposes a live monitoring dashboard.
 
 ---
+
 <img width="1079" height="976" alt="Image" src="https://github.com/user-attachments/assets/3ec8458c-9c2c-4333-b6f7-7e8f131b2d85" />
+
 ---
 
 ## Quick Start
