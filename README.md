@@ -1,4 +1,4 @@
-# DQ Pipeline — Kafka + Python
+# DQ Pipeline - Kafka + Python
 
 A production-style, event-driven Data Quality pipeline that validates streaming order data against versioned JSON schemas, routes valid/invalid records, automatically reprocesses failed records when schemas evolve, and exposes a live monitoring dashboard.
 
@@ -17,9 +17,9 @@ That's it. All services start automatically.
 
 | URL | What you'll see |
 |---|---|
-| http://localhost:8000 | Live dashboard — counters, charts, violations, DLQ |
+| http://localhost:8000 | Live dashboard - counters, charts, violations, DLQ |
 | http://localhost:8000/docs | FastAPI auto-generated API docs |
-| http://localhost:8080 | Kafka UI — browse topics and raw messages |
+| http://localhost:8080 | Kafka UI - browse topics and raw messages |
 
 ---
 
@@ -51,18 +51,18 @@ That's it. All services start automatically.
 
 ## Schema Versions
 
-### v1 — Baseline
+### v1 - Baseline
 Required: `order_id`, `customer_id`, `amount`, `order_date`
 - `order_id` must match `ORD-YYYY-NNN`
 - `amount` must be > 0
 - `order_date` must not be in the future
 
-### v2 — Adds Currency
+### v2 - Adds Currency
 Required: all v1 fields + `currency`
 - `currency` must be one of: `USD`, `EUR`, `GBP`
 - `amount` capped at 1,000,000
 
-### v3 — Expanded Currency + Optional Discount
+### v3 - Expanded Currency + Optional Discount
 Required: all v2 fields
 Optional: `discount_pct`
 - `currency` now also allows: `JPY`, `INR`
@@ -140,11 +140,11 @@ curl -X POST http://localhost:8000/api/reprocess
 
 ---
 
-## Demo Walkthrough — Schema Evolution
+## Demo Walkthrough - Schema Evolution
 
 This is the core demo to show the evaluator.
 
-**Step 1** — System is running. Producer is sending v2 messages with `currency=JPY`.
+**Step 1** - System is running. Producer is sending v2 messages with `currency=JPY`.
 These fail v2 validation (JPY not in allowed list) and land in the DLQ.
 
 Check the DLQ:
@@ -153,7 +153,7 @@ curl http://localhost:8000/api/dlq
 ```
 You'll see records with `error_details: ["currency 'JPY' not allowed; must be one of ['USD', 'EUR', 'GBP']"]`
 
-**Step 2** — v3 schema is introduced. JPY is now valid.
+**Step 2** - v3 schema is introduced. JPY is now valid.
 Signal the pipeline:
 ```bash
 curl -X POST http://localhost:8000/api/schemas \
@@ -161,10 +161,10 @@ curl -X POST http://localhost:8000/api/schemas \
   -d '{"version": "v3"}'
 ```
 
-**Step 3** — DLQ processor wakes up, revalidates all pending DLQ messages against v3.
+**Step 3** - DLQ processor wakes up, revalidates all pending DLQ messages against v3.
 JPY records that were previously invalid now pass. They are published to `valid.orders`.
 
-Check metrics — `reprocessed` counter increases:
+Check metrics - `reprocessed` counter increases:
 ```bash
 curl http://localhost:8000/api/metrics
 ```
