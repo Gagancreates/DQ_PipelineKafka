@@ -1,4 +1,4 @@
-# Design Document — DQ Pipeline (Kafka + Python)
+# Design Document - DQ Pipeline (Kafka + Python)
 
 ## 1. Architecture Overview
 
@@ -12,19 +12,19 @@
 Generates realistic order events continuously at a configurable interval (`PRODUCE_INTERVAL_MS`, default 800ms).
 
 Message distribution:
-- **40% valid** — evenly spread across v1, v2, v3 to demonstrate cross-version tracking
-- **40% invalid** — bad currency (JPY/INR/CNY in v2), negative amount, future order_date, empty customer_id
-- **20% edge** — unknown schema version (v99), malformed JSON, empty payload
+- **40% valid** : evenly spread across v1, v2, v3 to demonstrate cross-version tracking
+- **40% invalid** : bad currency (JPY/INR/CNY in v2), negative amount, future order_date, empty customer_id
+- **20% edge** : unknown schema version (v99), malformed JSON, empty payload
 
 The producer uses `order_id` as the Kafka partition key to ensure ordering per order across the pipeline.
 
 ### 2.2 Validator
 Two-phase validation on every message:
 
-**Phase 1 — JSON Schema check** (`jsonschema` library)
+**Phase 1 - JSON Schema check** (`jsonschema` library)
 Validates structure: required fields, field types, string length constraints. Fast, declarative, version-specific.
 
-**Phase 2 — Business rules check** (custom code in `schema_registry.py`)
+**Phase 2 - Business rules check** (custom code in `schema_registry.py`)
 Validates semantics that JSON Schema cannot express:
 - `order_id` regex pattern match
 - `customer_id` not blank (JSON Schema can enforce non-empty string type but not empty-after-strip)
@@ -33,16 +33,16 @@ Validates semantics that JSON Schema cannot express:
 - `currency` in the schema-version-specific allowed list
 
 **Routing:**
-- PASS → `valid.orders`
-- FAIL → `invalid.orders.dlq` with enriched DLQ envelope
+- PASS : `valid.orders`
+- FAIL : `invalid.orders.dlq` with enriched DLQ envelope
 
 **Backpressure:**
 A `threading.Semaphore(MAX_CONCURRENT_VALIDATIONS)` caps concurrent in-flight validations. If the semaphore is fully occupied, the consumer pauses its Kafka partition assignment, preventing unbounded queue growth. The partition is resumed once a validation slot frees up. This provides deterministic backpressure without an external queue.
 
 ### 2.3 DLQ Processor
 Subscribes to two topics in a single consumer:
-- `invalid.orders.dlq` — buffers incoming failed messages in an in-memory dict keyed by `dlq_id`
-- `schema.updates` — triggers reprocessing on any new message
+- `invalid.orders.dlq` - buffers incoming failed messages in an in-memory dict keyed by `dlq_id`
+- `schema.updates` - triggers reprocessing on any new message
 
 On reprocess trigger:
 1. Snapshot the current pending buffer
@@ -55,8 +55,8 @@ The use of `_reprocessed=True` flag lets the API observer distinguish reprocesse
 
 ### 2.4 API + Dashboard
 FastAPI application with two background threads:
-- **Valid observer** — consumes `valid.orders` from the beginning, counts valid and reprocessed messages
-- **DLQ observer** — consumes `invalid.orders.dlq` from the beginning, tracks pending DLQ state
+- **Valid observer** - consumes `valid.orders` from the beginning, counts valid and reprocessed messages
+- **DLQ observer** - consumes `invalid.orders.dlq` from the beginning, tracks pending DLQ state
 
 This observer pattern means the API builds its own view of the system state from Kafka — no shared memory, no IPC between containers. Each service is fully independent.
 
