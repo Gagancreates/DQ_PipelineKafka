@@ -2,44 +2,7 @@
 
 ## 1. Architecture Overview
 
-```
-                        ┌─────────────┐
-                        │   Producer  │  (mixed v1/v2/v3, valid/invalid/edge)
-                        └──────┬──────┘
-                               │ publishes
-                               ▼
-                       ┌──────────────┐
-                       │  raw.orders  │  (3 partitions, keyed by order_id)
-                       └──────┬───────┘
-                              │ consumes
-                       ┌──────▼───────┐
-                       │  Validator   │  (consumer group: dq-validator)
-                       └──┬───────┬───┘
-                    PASS  │       │  FAIL
-                          ▼       ▼
-              ┌──────────────┐  ┌─────────────────────┐
-              │ valid.orders │  │ invalid.orders.dlq   │
-              └──────────────┘  └──────────┬───────────┘
-                                           │ consumes
-                                ┌──────────▼────────────┐
-                                │    DLQ Processor       │
-                                │  (also watches         │
-                                │   schema.updates)      │
-                                └──────────┬─────────────┘
-                                      PASS │
-                                           ▼
-                                   ┌──────────────┐
-                                   │ valid.orders │  (reprocessed records)
-                                   └──────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│  API + Dashboard                                        │
-│  • Observes valid.orders + invalid.orders.dlq           │
-│  • Exposes REST endpoints                               │
-│  • Serves live dashboard (Chart.js, polling /api/*)     │
-│  • POST /api/schemas → publishes to schema.updates      │
-└─────────────────────────────────────────────────────────┘
-```
+<img width="1079" height="976" alt="Image" src="https://github.com/user-attachments/assets/3ec8458c-9c2c-4333-b6f7-7e8f131b2d85" />
 
 ---
 
