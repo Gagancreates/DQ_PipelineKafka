@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Order Schema v3",
+  "description": "Expands currency support to include JPY and INR. Adds optional discount_pct field.",
+  "type": "object",
+  "required": ["order_id", "customer_id", "amount", "order_date", "currency", "schema_version"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "v3"
+    },
+    "order_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "customer_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "amount": {
+      "type": "number"
+    },
+    "order_date": {
+      "type": "string",
+      "minLength": 1
+    },
+    "currency": {
+      "type": "string",
+      "minLength": 1
+    },
+    "discount_pct": {
+      "type": "number"
+    }
+  },
+  "business_rules": {
+    "order_id_pattern": "^ORD-\\d{4}-\\d{3,}$",
+    "amount_min": 0,
+    "amount_max": 1000000,
+    "order_date_not_future": true,
+    "allowed_currencies": ["USD", "EUR", "GBP", "JPY", "INR"],
+    "discount_pct_min": 0,
+    "discount_pct_max": 100
+  }
+}

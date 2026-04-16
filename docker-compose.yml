@@ -1,0 +1,154 @@
+networks:
+  dq-network:
+    driver: bridge
+
+services:
+
+  # ── ZooKeeper ──────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    networks:
+      - dq-network
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_4LW_COMMANDS_WHITELIST: "*"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "(exec 3<>/dev/tcp/localhost/2181) 2>/dev/null && echo ok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ── Kafka Broker ───────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    networks:
+      - dq-network
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_INTERNAL:PLAINTEXT,PLAINTEXT_EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka:29092,PLAINTEXT_EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 2
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # ── Topic Initializer (one-shot) ───────────────────────────────────────────
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-init
+    networks:
+      - dq-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command: >-
+      "echo 'Creating Kafka topics...' &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic raw.orders --partitions 3 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic valid.orders --partitions 3 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic invalid.orders.dlq --partitions 3 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic schema.updates --partitions 1 --replication-factor 1 &&
+      echo 'Topics created. Listing:' &&
+      kafka-topics --bootstrap-server kafka:29092 --list &&
+      echo 'kafka-init done.'"
+    restart: "no"
+
+  # ── Kafka UI ───────────────────────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    networks:
+      - dq-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    restart: unless-stopped
+
+  # ── Producer ───────────────────────────────────────────────────────────────
+  producer:
+    build:
+      context: .
+      dockerfile: services/producer/Dockerfile
+    container_name: producer
+    networks:
+      - dq-network
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: unless-stopped
+
+  # ── Validator ──────────────────────────────────────────────────────────────
+  validator:
+    build:
+      context: .
+      dockerfile: services/validator/Dockerfile
+    container_name: validator
+    networks:
+      - dq-network
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: unless-stopped
+
+  # ── DLQ Processor ─────────────────────────────────────────────────────────
+  dlq_processor:
+    build:
+      context: .
+      dockerfile: services/dlq_processor/Dockerfile
+    container_name: dlq_processor
+    networks:
+      - dq-network
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: unless-stopped
+
+  # ── API + Dashboard ────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    container_name: api
+    networks:
+      - dq-network
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

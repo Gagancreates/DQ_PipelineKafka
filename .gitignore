@@ -1,0 +1,18 @@
+# Excluded from repo
+plan.md
+Problem_Statement.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

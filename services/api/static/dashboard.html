@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DQ Pipeline — Live Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 1.25rem; font-weight: 600; color: #a78bfa; letter-spacing: 0.5px; }
+    header h1 span { color: #e2e8f0; }
+
+    #status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+
+    #status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .main { padding: 24px 32px; display: flex; flex-direction: column; gap: 24px; }
+
+    /* ── Counters ── */
+    .counters {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .counter-card {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .counter-card .label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+    .counter-card .value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .counter-card .sub   { font-size: 0.75rem; color: #475569; margin-top: 4px; }
+
+    .c-total      { border-top: 3px solid #a78bfa; }
+    .c-valid      { border-top: 3px solid #22c55e; }
+    .c-invalid    { border-top: 3px solid #ef4444; }
+    .c-reprocess  { border-top: 3px solid #f59e0b; }
+
+    .c-total   .value { color: #a78bfa; }
+    .c-valid   .value { color: #22c55e; }
+    .c-invalid .value { color: #ef4444; }
+    .c-reprocess .value { color: #f59e0b; }
+
+    /* ── Grid layouts ── */
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .card h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chart-wrap.tall { height: 180px; }
+
+    /* ── Violations table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th { text-align: left; color: #475569; font-weight: 500; padding: 6px 10px; border-bottom: 1px solid #2d3148; }
+    td { padding: 8px 10px; border-bottom: 1px solid #1e2235; color: #cbd5e1; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1e2235; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .badge-v1 { background: #1e3a5f; color: #60a5fa; }
+    .badge-v2 { background: #1e3348; color: #818cf8; }
+    .badge-v3 { background: #1f2d3d; color: #34d399; }
+    .badge-unknown { background: #2d2020; color: #f87171; }
+
+    /* ── DLQ panel ── */
+    .dlq-stats { display: flex; gap: 24px; margin-bottom: 16px; }
+    .dlq-stat .n { font-size: 1.8rem; font-weight: 700; color: #f59e0b; }
+    .dlq-stat .l { font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .btn {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:active { opacity: 0.7; }
+    .btn-amber  { background: #f59e0b; color: #0f1117; }
+    .btn-purple { background: #7c3aed; color: #fff; margin-left: 8px; }
+
+    #reprocess-result {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: #22c55e;
+      min-height: 18px;
+    }
+
+    /* ── Schema panel ── */
+    .schema-list { display: flex; flex-direction: column; gap: 8px; }
+    .schema-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #141720;
+      border-radius: 8px;
+      border: 1px solid #2d3148;
+    }
+    .schema-item .ver { font-weight: 700; font-size: 0.9rem; }
+    .schema-item .ts  { font-size: 0.72rem; color: #475569; }
+    .schema-latest    { border-color: #7c3aed; }
+
+    /* ── Throughput ── */
+    #tput-label { font-size: 1.5rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1><span>DQ Pipeline</span> — Live Monitor</h1>
+  <div id="status-bar">
+    <div id="status-dot"></div>
+    <span id="last-update">connecting...</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- Counters -->
+  <div class="counters">
+    <div class="counter-card c-total">
+      <div class="label">Total Processed</div>
+      <div class="value" id="c-total">—</div>
+      <div class="sub" id="c-tput">— msg/s</div>
+    </div>
+    <div class="counter-card c-valid">
+      <div class="label">Valid</div>
+      <div class="value" id="c-valid">—</div>
+      <div class="sub" id="c-valid-pct">—%</div>
+    </div>
+    <div class="counter-card c-invalid">
+      <div class="label">Invalid</div>
+      <div class="value" id="c-invalid">—</div>
+      <div class="sub" id="c-invalid-pct">—%</div>
+    </div>
+    <div class="counter-card c-reprocess">
+      <div class="label">Reprocessed</div>
+      <div class="value" id="c-reprocess">—</div>
+      <div class="sub">rescued from DLQ</div>
+    </div>
+  </div>
+
+  <!-- Row: donut + bar + throughput -->
+  <div class="row-3">
+    <div class="card">
+      <h2>Valid vs Invalid</h2>
+      <div class="chart-wrap">
+        <canvas id="donut-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Messages by Schema Version</h2>
+      <div class="chart-wrap">
+        <canvas id="bar-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Live Throughput</h2>
+      <div id="tput-label">0 <small style="font-size:0.9rem;color:#94a3b8">msg/s</small></div>
+      <div class="chart-wrap tall">
+        <canvas id="line-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row: violations + DLQ + schemas -->
+  <div class="row-3">
+
+    <div class="card" style="grid-column: span 1">
+      <h2>Recent Violations</h2>
+      <div style="overflow-x:auto; max-height: 260px; overflow-y: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Version</th>
+              <th>Error</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="violations-body">
+            <tr><td colspan="4" style="color:#475569">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>DLQ Status</h2>
+      <div class="dlq-stats">
+        <div class="dlq-stat">
+          <div class="n" id="dlq-pending">—</div>
+          <div class="l">Pending</div>
+        </div>
+        <div class="dlq-stat">
+          <div class="n" id="dlq-reprocess-count" style="color:#22c55e">—</div>
+          <div class="l">Reprocessed</div>
+        </div>
+      </div>
+      <div style="font-size:0.75rem; color:#475569; margin-bottom:14px">
+        Last reprocess: <span id="dlq-last-ts" style="color:#94a3b8">never</span>
+      </div>
+      <div>
+        <button class="btn btn-amber" onclick="triggerReprocess()">Trigger Reprocess</button>
+        <button class="btn btn-purple" onclick="window.open('/docs','_blank')">API Docs</button>
+      </div>
+      <div id="reprocess-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>Schema Versions</h2>
+      <div class="schema-list" id="schema-list">
+        <div style="color:#475569;font-size:0.8rem">Loading...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Chart instances ────────────────────────────────────────────────────────
+
+const COLORS = {
+  valid:   '#22c55e',
+  invalid: '#ef4444',
+  v1:      '#60a5fa',
+  v2:      '#818cf8',
+  v3:      '#34d399',
+  unknown: '#f87171',
+  v99:     '#fb923c',
+};
+
+const donutCtx = document.getElementById('donut-chart').getContext('2d');
+const donutChart = new Chart(donutCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Valid', 'Invalid'],
+    datasets: [{ data: [0, 0], backgroundColor: [COLORS.valid, COLORS.invalid], borderWidth: 0, hoverOffset: 6 }]
+  },
+  options: {
+    cutout: '68%',
+    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, padding: 16 } } },
+    animation: { duration: 400 }
+  }
+});
+
+const barCtx = document.getElementById('bar-chart').getContext('2d');
+const barChart = new Chart(barCtx, {
+  type: 'bar',
+  data: {
+    labels: [],
+    datasets: [
+      { label: 'Valid',   data: [], backgroundColor: COLORS.valid,   borderRadius: 4 },
+      { label: 'Invalid', data: [], backgroundColor: COLORS.invalid, borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: { stacked: false, ticks: { color: '#64748b' }, grid: { color: '#1e2235' } },
+      y: { ticks: { color: '#64748b' }, grid: { color: '#1e2235' } }
+    },
+    plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 12 } } },
+    animation: { duration: 400 }
+  }
+});
+
+// Line chart — last 60 seconds throughput
+const lineLabels = Array.from({length: 60}, (_, i) => i === 0 ? 'now' : `-${i}s`).reverse();
+const lineCtx = document.getElementById('line-chart').getContext('2d');
+const lineChart = new Chart(lineCtx, {
+  type: 'line',
+  data: {
+    labels: lineLabels,
+    datasets: [{
+      label: 'msg/s',
+      data: Array(60).fill(0),
+      borderColor: '#38bdf8',
+      backgroundColor: 'rgba(56,189,248,0.08)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 0,
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: { display: false },
+      y: { ticks: { color: '#64748b' }, grid: { color: '#1e2235' }, beginAtZero: true }
+    },
+    plugins: { legend: { display: false } },
+    animation: { duration: 300 }
+  }
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fmt(n) { return n === undefined || n === null ? '—' : n.toLocaleString(); }
+function pct(a, b) { return b > 0 ? (a / b * 100).toFixed(1) + '%' : '0%'; }
+
+function badgeFor(v) {
+  const cls = ['v1','v2','v3'].includes(v) ? `badge-${v}` : 'badge-unknown';
+  return `<span class="badge ${cls}">${v}</span>`;
+}
+
+function timeAgo(iso) {
+  if (!iso) return 'never';
+  const d = new Date(iso);
+  const s = Math.floor((Date.now() - d) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  return d.toLocaleTimeString();
+}
+
+// ── Data fetching ──────────────────────────────────────────────────────────
+
+async function fetchMetrics() {
+  const [metricsRes, violationsRes, dlqRes, schemasRes, tputRes] = await Promise.all([
+    fetch('/api/metrics'),
+    fetch('/api/violations'),
+    fetch('/api/dlq'),
+    fetch('/api/schemas'),
+    fetch('/api/metrics/throughput'),
+  ]);
+
+  const metrics    = await metricsRes.json();
+  const violations = await violationsRes.json();
+  const dlq        = await dlqRes.json();
+  const schemas    = await schemasRes.json();
+  const tput       = await tputRes.json();
+
+  updateCounters(metrics);
+  updateDonut(metrics);
+  updateBar(metrics);
+  updateLine(tput);
+  updateViolations(violations);
+  updateDLQ(dlq, metrics);
+  updateSchemas(schemas);
+
+  document.getElementById('last-update').textContent =
+    'Updated ' + new Date().toLocaleTimeString();
+}
+
+// ── Update functions ───────────────────────────────────────────────────────
+
+function updateCounters(m) {
+  document.getElementById('c-total').textContent   = fmt(m.total);
+  document.getElementById('c-valid').textContent   = fmt(m.valid);
+  document.getElementById('c-invalid').textContent = fmt(m.invalid);
+  document.getElementById('c-reprocess').textContent = fmt(m.reprocessed);
+  document.getElementById('c-tput').textContent    = (m.throughput_per_sec || 0) + ' msg/s';
+  document.getElementById('c-valid-pct').textContent   = pct(m.valid, m.total);
+  document.getElementById('c-invalid-pct').textContent = pct(m.invalid, m.total);
+  document.getElementById('tput-label').innerHTML =
+    `${m.throughput_per_sec || 0} <small style="font-size:0.9rem;color:#94a3b8">msg/s</small>`;
+}
+
+function updateDonut(m) {
+  donutChart.data.datasets[0].data = [m.valid, m.invalid];
+  donutChart.update();
+}
+
+function updateBar(m) {
+  const versions = Object.keys(m.by_version || {}).sort();
+  barChart.data.labels = versions;
+  barChart.data.datasets[0].data = versions.map(v => m.by_version[v].valid);
+  barChart.data.datasets[1].data = versions.map(v => m.by_version[v].invalid);
+  barChart.update();
+}
+
+function updateLine(tput) {
+  if (!tput.series) return;
+  const counts = tput.series.map(p => p.count);
+  lineChart.data.datasets[0].data = counts;
+  lineChart.update();
+}
+
+function updateViolations(data) {
+  const rows = (data.violations || []).slice(-10).reverse();
+  const tbody = document.getElementById('violations-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:#475569">No violations yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(v => `
+    <tr>
+      <td style="font-family:monospace;font-size:0.75rem">${v.order_id || '—'}</td>
+      <td>${badgeFor(v.schema_version)}</td>
+      <td style="color:#fca5a5;font-size:0.73rem">${(v.errors || []).join('; ')}</td>
+      <td style="color:#475569;white-space:nowrap">${timeAgo(v.timestamp)}</td>
+    </tr>
+  `).join('');
+}
+
+function updateDLQ(dlq, metrics) {
+  document.getElementById('dlq-pending').textContent       = fmt(dlq.pending_count);
+  document.getElementById('dlq-reprocess-count').textContent = fmt(metrics.reprocessed);
+  document.getElementById('dlq-last-ts').textContent       = timeAgo(dlq.last_reprocess_at);
+}
+
+function updateSchemas(schemas) {
+  const list = document.getElementById('schema-list');
+  const versions = schemas.versions || [];
+  if (!versions.length) {
+    list.innerHTML = '<div style="color:#475569;font-size:0.8rem">No schemas registered</div>';
+    return;
+  }
+  list.innerHTML = versions.map(s => `
+    <div class="schema-item ${s.version === schemas.latest ? 'schema-latest' : ''}">
+      <div>
+        <div class="ver">${s.version} ${s.version === schemas.latest ? '⬤' : ''}</div>
+        <div class="ts">Registered ${timeAgo(s.registered_at)}</div>
+      </div>
+      ${s.version === schemas.latest
+        ? '<span class="badge" style="background:#2e1065;color:#a78bfa">latest</span>'
+        : ''}
+    </div>
+  `).join('');
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+
+async function triggerReprocess() {
+  const el = document.getElementById('reprocess-result');
+  el.style.color = '#94a3b8';
+  el.textContent = 'Triggering...';
+  try {
+    const res = await fetch('/api/reprocess', { method: 'POST' });
+    const data = await res.json();
+    el.style.color = '#22c55e';
+    el.textContent = data.message || 'Reprocess triggered.';
+  } catch(e) {
+    el.style.color = '#ef4444';
+    el.textContent = 'Error: ' + e.message;
+  }
+  setTimeout(() => { el.textContent = ''; }, 4000);
+}
+
+// ── Poll loop ──────────────────────────────────────────────────────────────
+
+fetchMetrics();
+setInterval(fetchMetrics, 3000);
+</script>
+</body>
+</html>

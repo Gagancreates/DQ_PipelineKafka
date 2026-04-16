@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Order Schema v1",
+  "description": "Baseline order schema. Required fields: order_id, customer_id, amount, order_date.",
+  "type": "object",
+  "required": ["order_id", "customer_id", "amount", "order_date", "schema_version"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "v1"
+    },
+    "order_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "customer_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "amount": {
+      "type": "number"
+    },
+    "order_date": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "business_rules": {
+    "order_id_pattern": "^ORD-\\d{4}-\\d{3,}$",
+    "amount_min": 0,
+    "amount_max": null,
+    "order_date_not_future": true,
+    "allowed_currencies": null
+  }
+}
