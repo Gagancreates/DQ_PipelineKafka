@@ -27,7 +27,7 @@ A production-style, event-driven Data Quality pipeline that validates streaming 
 ## Quick Start
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Gagancreates/DQ_Pipeline_Kafka
 cd DQ_Pipeline_Kafka
 
 docker-compose up --build
