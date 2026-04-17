@@ -43,7 +43,7 @@ producer = None
 
 # ── Handler ───────────────────────────────────────────────────────────────
 
-def handle_message(message: dict) -> None:
+def handle_message(message: dict, kafka_msg=None, consumer=None) -> None:
     """Called for every decoded JSON message from raw.orders."""
     acquired = semaphore.acquire(timeout=5)
     if not acquired:
@@ -75,6 +75,10 @@ def handle_message(message: dict) -> None:
                 f"errors={result.errors}"
             )
 
+        # Commit offset only after message is fully processed (at-least-once delivery)
+        if kafka_msg and consumer:
+            consumer.commit(kafka_msg)
+
     finally:
         semaphore.release()
 
@@ -87,10 +91,15 @@ def handle_raw(data: dict) -> None:
 # ── Consumer loop with backpressure ───────────────────────────────────────
 
 def run_consumer(stop_event: threading.Event) -> None:
-    consumer = make_consumer(
-        group_id=config.CONSUMER_GROUP_VALIDATOR,
-        topics=[config.TOPIC_RAW_ORDERS],
-    )
+    from confluent_kafka import Consumer
+    consumer = Consumer({
+        "bootstrap.servers": config.KAFKA_BOOTSTRAP_SERVERS,
+        "group.id": config.CONSUMER_GROUP_VALIDATOR,
+        "auto.offset.reset": "earliest",
+        "enable.auto.commit": False,   # manual commit for at-least-once delivery
+        "session.timeout.ms": 30000,
+    })
+    consumer.subscribe([config.TOPIC_RAW_ORDERS])
 
     logger.info(f"Subscribed to '{config.TOPIC_RAW_ORDERS}'")
 
@@ -119,6 +128,7 @@ def run_consumer(stop_event: threading.Event) -> None:
                 publish(producer, config.TOPIC_DLQ, dlq_msg.to_dict())
                 store.record_invalid("unknown", ["Empty message payload"])
                 store.add_dlq_message(dlq_msg.to_dict())
+                consumer.commit(msg)
                 continue
 
             # Decode JSON — handle malformed edge case
@@ -137,6 +147,7 @@ def run_consumer(stop_event: threading.Event) -> None:
                 publish(producer, config.TOPIC_DLQ, dlq_msg.to_dict())
                 store.record_invalid("unknown", [f"Malformed JSON: {e}"])
                 store.add_dlq_message(dlq_msg.to_dict())
+                consumer.commit(msg)
                 continue
 
             # Backpressure check: if semaphore is fully occupied, pause partition
@@ -150,7 +161,8 @@ def run_consumer(stop_event: threading.Event) -> None:
                 logger.info("Backpressure: resuming consumer partition")
 
             # Process in a thread so we don't block the poll loop
-            t = threading.Thread(target=handle_message, args=(data,), daemon=True)
+            # Pass msg so the thread can commit offset after processing (at-least-once)
+            t = threading.Thread(target=handle_message, args=(data, msg, consumer), daemon=True)
             t.start()
 
     finally:
