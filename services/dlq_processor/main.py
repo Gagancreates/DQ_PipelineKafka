@@ -1,16 +1,3 @@
-"""
-DLQ Processor Service
-
-Subscribes to two topics simultaneously:
-  - invalid.orders.dlq   : buffers incoming failed messages in memory
-  - schema.updates        : triggers reprocessing when a new schema is registered
-
-On reprocess trigger:
-  - Revalidates every pending DLQ message against the latest schema version
-  - PASS -> publishes to valid.orders with _reprocessed=True flag
-  - FAIL -> increments retry_count; drops message after MAX_RETRIES
-"""
-
 import json
 import logging
 import sys

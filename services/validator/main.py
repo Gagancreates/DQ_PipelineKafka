@@ -1,14 +1,3 @@
-"""
-Validator Service
-Consumes raw.orders, validates each message in two phases:
-  1. JSON Schema structural check
-  2. Business rules check
-Routes:
-  PASS -> valid.orders
-  FAIL -> invalid.orders.dlq (with enriched DLQ metadata)
-Backpressure: semaphore caps concurrent processing at MAX_CONCURRENT_VALIDATIONS.
-"""
-
 import logging
 import sys
 import threading
@@ -41,7 +30,7 @@ semaphore: threading.Semaphore = None
 producer = None
 
 
-# ── Handler ───────────────────────────────────────────────────────────────
+# Handler
 
 def handle_message(message: dict, kafka_msg=None, consumer=None) -> None:
     """Called for every decoded JSON message from raw.orders."""
@@ -88,7 +77,7 @@ def handle_raw(data: dict) -> None:
     handle_message(data)
 
 
-# ── Consumer loop with backpressure ───────────────────────────────────────
+# Consumer loop with backpressure
 
 def run_consumer(stop_event: threading.Event) -> None:
     from confluent_kafka import Consumer

@@ -10,7 +10,7 @@ from . import config
 logger = logging.getLogger(__name__)
 
 
-# ── Producer ───────────────────────────────────────────────────────────────
+# Producer 
 
 def make_producer() -> Producer:
     return Producer({
@@ -41,7 +41,7 @@ def flush(producer: Producer, timeout: float = 10.0) -> None:
     producer.flush(timeout)
 
 
-# ── Consumer ───────────────────────────────────────────────────────────────
+# Consumer
 
 def make_consumer(group_id: str, topics: list[str], auto_offset_reset: str = "earliest") -> Consumer:
     consumer = Consumer({

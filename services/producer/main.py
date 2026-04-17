@@ -1,11 +1,3 @@
-"""
-Producer Service
-Continuously generates order events with the following mix:
-  40% valid   — spread evenly across v1, v2, v3
-  40% invalid — bad currency, negative amount, future date, missing customer_id
-  20% edge    — unknown schema version, malformed JSON, empty payload
-"""
-
 import json
 import logging
 import random

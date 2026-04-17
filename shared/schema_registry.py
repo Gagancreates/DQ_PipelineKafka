@@ -15,7 +15,7 @@ class SchemaRegistry:
         self._registry: dict[str, dict] = {}
         self._load_from_disk()
 
-    # ── Loading ────────────────────────────────────────────────────────────
+    # Loading
 
     def _load_from_disk(self) -> None:
         """Load all vN.json files from the schemas directory."""
@@ -38,7 +38,7 @@ class SchemaRegistry:
             "source": source,
         }
 
-    # ── Public API ─────────────────────────────────────────────────────────
+    # Public API
 
     def list_versions(self) -> list[str]:
         return sorted(self._registry.keys())
@@ -101,7 +101,7 @@ class SchemaRegistry:
         patched = {**message, "schema_version": latest}
         return self.validate(patched)
 
-    # ── Business Rules ─────────────────────────────────────────────────────
+    # Business Rules
 
     def _apply_business_rules(self, message: dict, rules: dict) -> list[str]:
         errors: list[str] = []
