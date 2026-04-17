@@ -11,6 +11,7 @@ __pycache__/
 venv/
 
 # Env
+.env
 .env.local
 
 # OS
