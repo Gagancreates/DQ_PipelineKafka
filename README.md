@@ -4,6 +4,10 @@ A production-style, event-driven Data Quality pipeline that validates streaming 
 
 ---
 
+https://github.com/user-attachments/assets/1b258c90-9e25-4611-8336-3c3874691ab3
+
+---
+
 <img width="1079" height="976" alt="Image" src="https://github.com/user-attachments/assets/3ec8458c-9c2c-4333-b6f7-7e8f131b2d85" />
 
 ---
