@@ -3,6 +3,7 @@ import logging
 import random
 import sys
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, "/app")
@@ -134,6 +135,12 @@ VALID_GENERATORS   = [valid_v1, valid_v2, valid_v3]
 INVALID_GENERATORS = [invalid_bad_currency, invalid_negative_amount, invalid_future_date, invalid_missing_customer]
 EDGE_GENERATORS    = [edge_unknown_version, edge_malformed, edge_empty]
 
+
+def attach_event_id(msg: dict) -> dict:
+    enriched = dict(msg)
+    enriched["event_id"] = str(uuid.uuid4())
+    return enriched
+
 def next_message() -> tuple[dict | None, bytes | None, str]:
     """
     Returns (dict_msg, raw_bytes, label).
@@ -144,12 +151,12 @@ def next_message() -> tuple[dict | None, bytes | None, str]:
 
     if roll < 0.40:                      # 40% valid
         gen = random.choice(VALID_GENERATORS)
-        msg = gen()
+        msg = attach_event_id(gen())
         return msg, None, f"VALID/{msg['schema_version']}"
 
     elif roll < 0.80:                    # 40% invalid
         gen = random.choice(INVALID_GENERATORS)
-        msg = gen()
+        msg = attach_event_id(gen())
         return msg, None, f"INVALID/{msg.get('schema_version', '?')}"
 
     else:                                # 20% edge
@@ -159,7 +166,8 @@ def next_message() -> tuple[dict | None, bytes | None, str]:
             label = "EDGE/malformed" if result else "EDGE/empty"
             return None, result, label
         else:
-            return result, None, f"EDGE/{result.get('schema_version', '?')}"
+            msg = attach_event_id(result)
+            return msg, None, f"EDGE/{msg.get('schema_version', '?')}"
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────

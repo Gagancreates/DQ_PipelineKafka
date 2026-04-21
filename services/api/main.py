@@ -78,6 +78,10 @@ def _observe_valid_orders(stop: threading.Event) -> None:
             try:
                 data = json.loads(msg.value().decode("utf-8"))
                 version = data.get("schema_version", "unknown")
+                event_id = data.get("event_id")
+                if store.has_seen_valid_event(event_id):
+                    continue
+                store.mark_valid_event_seen(event_id)
                 if data.get("_reprocessed"):
                     store.record_reprocessed(data.get("_dlq_id", "unknown"), version)
                 else:

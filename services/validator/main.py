@@ -42,9 +42,20 @@ def handle_message(message: dict, kafka_msg=None, consumer=None) -> None:
     try:
         result = registry.validate(message)
         version = result.schema_version or message.get("schema_version", "unknown")
+        event_id = message.get("event_id")
 
         if result.is_valid:
+            if store.has_seen_valid_event(event_id):
+                logger.warning(
+                    f"DUPLICATE VALID event_id={event_id} "
+                    f"order_id={message.get('order_id', '?')} skipped"
+                )
+                if kafka_msg and consumer:
+                    consumer.commit(kafka_msg)
+                return
+
             publish(producer, config.TOPIC_VALID_ORDERS, message, key=message.get("order_id"))
+            store.mark_valid_event_seen(event_id)
             store.record_valid(version)
             logger.info(f"VALID   [{version}] order_id={message.get('order_id', '?')}")
 

@@ -22,6 +22,9 @@ class MetricsStore:
         # Per schema version: {version: {valid, invalid}}
         self._by_version: dict[str, dict[str, int]] = {}
 
+        # Seen valid events â€” used for lightweight in-process dedup
+        self._seen_valid_event_ids: set[str] = set()
+
         # Violations log — last 50 entries
         self._violations: deque[dict[str, Any]] = deque(maxlen=50)
 
@@ -79,6 +82,18 @@ class MetricsStore:
                 "version": version,
                 "registered_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             })
+
+    def has_seen_valid_event(self, event_id: str | None) -> bool:
+        if not event_id:
+            return False
+        with self._lock:
+            return event_id in self._seen_valid_event_ids
+
+    def mark_valid_event_seen(self, event_id: str | None) -> None:
+        if not event_id:
+            return
+        with self._lock:
+            self._seen_valid_event_ids.add(event_id)
 
     # ── Queries ────────────────────────────────────────────────────────────
 
